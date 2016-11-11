@@ -1,62 +1,75 @@
-from urllib.request import FancyURLopener
+# Webscraper in Python2
+
 from bs4 import BeautifulSoup
+from urllib import FancyURLopener
+import re
 
 import sys
-from importlib import reload
-reload(sys)
-#sys.setdefaultencoding('utf-8')
-#import codecs
-#import unicodedata
+from imp import reload
+
 from unidecode import unidecode
+reload(sys)
+sys.setdefaultencoding('utf-8')
+import codecs
+import unicodedata
 
 
 class MyOpener(FancyURLopener):
     version = 'Mozilla/5.0 (Windows; U; Windows NT 5.1; it; rv:1.8.1.11) Gecko/20071127 Firefox/2.0.0.11'
 myopener = MyOpener()
 
-f=open('file-split-urlciiu.txt','r')
 
-industries=f.readlines()
+def limpiar(var):
+    return unidecode(var.replace('Raz\xc3\xb3n social: ', '').replace('Nombre comercial: ', '|').replace('RUC: ', '|').
+                     replace('Inicio de actividades: ', '|').replace('Actividad de comercio exterior: ', '|').
+                     replace('Direci\xc3\xb3n: ', '|').replace('Tel\xc3\xa8fono: ', '|').replace('Fax: ', '|').
+                     replace('Condici\xc3\xb3n: ', '|').replace('Estado: ', '|').
+                     replace('Datos actualizados al: ', '|')).replace('Telefono: ', '|').replace('TelA(c)fono: ', '|').\
+        encode('ascii')
 
-f=open('file-list-companies.txt','w')
-for element in industries:
+# Open and read of urls and industries
+f = open('file-split-urlciiu.txt', 'r')
+g = open('file-split-ciiu.txt', 'r')
+industriesURL = f.readlines()
+industries = g.readlines()
 
-    for x in range(0, 90):
-        new_element=element[:-2]
-        html = myopener.open(new_element+str(x)).read()
-        soup = BeautifulSoup(html)
-        if soup.find('li', class_="disabled") == None:
+# Print header
+f = open('file-lista-empresas.txt', 'w')
+f.write('Razon social|Nombre comercial|RUC|Inicio de actividades'
+        '|Comercio Exterior|Direccion|Telefono|Fax|Condicion|Estado|Fecha actualizada|CIIU'+'\n')
 
-            list = soup.find_all('tr')
-
-            for elem in list:
-                s=unidecode(elem.get_text())
-                a=str(s.encode('ascii'))
-                f.write(a)
-                f.write("--"*100+'\n')
-            f.write('='*100)
-            #for x in range(1,len(list)-1):
-                #print(list[x].split('</a>')[0])#.split('">')[1])
-            #for elem in list:
-                #print(elem.get_text())
-                #print(elem.split('</a>')[0])
-
-            # companies=list_companies.find_all('tr')
-            # companies=str(companies).split("</tr>")
-            # print(companies)
-            #print('=' * 100)
-        else:
-            pass
-
-    #time_stamp lines   speed
-    #12.01m 00000
-    #12.03m 47000   23500 l/m
-    #12.05m 78000   19500 l/m
-    #12.08m 97000   13850 l/m
-    #12.11m 12264   1226 l/m
-    #12.16m 16714   1114 l/m
-    #12.21m 22380   1119 l/m
-    #12.26m 28234   1129 l/m
-    #12.31m 38000   1266 l/m
-    #12.37m 43174   1199 l/m
-    #12.55m 62000   1148 l/m
+y = 0  # Industry counter
+# Iterates each industry URL
+for element1 in industriesURL:
+    x = 1  # URL counter starting at 1
+    new_element = element1[:-2].replace('\xc3', 'n')  # Clean the URL from variable items and special characters
+    soup = BeautifulSoup(myopener.open(new_element + '0').read())  # Scrape and read URL counter 0
+    list = soup.find_all('tr')  # Search for 'tr' tag and get company information
+    # Iterates each company of URL counter 0, list[1] is a header
+    for elem in list[1:]:
+        a = str(unidecode(elem.get_text()).encode('ascii')).split('\n')  # Split ID, name1, name2
+        companyURL = 'http://www.razonsocialperu.com/empresa/detalle/' + a[1] + '\n'  # URL using company ID
+        companySoup = BeautifulSoup(myopener.open(companyURL).read())\
+            .find_all('ul', class_='iconlist-color clearfix')  # Scrape, read and find specific company fields
+        # Iterates each field
+        for item in companySoup:
+            f.write(limpiar(item.get_text()).replace('\n', '') + '|' + industries[y])  # Printing after cleaning fields
+    # Iterates each company of URL counter 1+, while next option is available
+    while BeautifulSoup(myopener.open(new_element + str(x)).read()).find('li', class_="disabled") is None:
+        soup = BeautifulSoup(myopener.open(new_element + str(x)).read())  # Scrape and read UR counter 1+
+        try:  # Exception of codification
+            try:
+                list = soup.find_all('tr')  # Find all 'tr' tag and get company information
+                for elem in list[1:]:
+                    a = str(unidecode(elem.get_text()).encode('ascii')).split('\n')
+                    companyURL = 'http://www.razonsocialperu.com/empresa/detalle/' + a[1] + '\n'
+                    companySoup = BeautifulSoup(myopener.open(companyURL).read())\
+                        .find_all('ul', class_='iconlist-color clearfix')
+                    for item in companySoup:
+                        f.write(limpiar(item.get_text().replace('\n', '')) + '|' + industries[y])
+            except UnicodeError:
+                print 'UnicodeError'
+        except UnicodeEncodeError:
+            print 'UnicodeEncodeError'
+        x += 1  # Increase the URL counter
+    y += 1  # Go to next industry
